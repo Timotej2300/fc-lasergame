@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import { first } from "@/lib/supabase/safe";
 import type { EventRow } from "@/types/database";
 
 export async function getActiveEvent(): Promise<EventRow | null> {
@@ -7,17 +8,17 @@ export async function getActiveEvent(): Promise<EventRow | null> {
     .from("events")
     .select("*")
     .eq("is_active", true)
-    .maybeSingle();
+    .limit(1);
 
   if (error) throw error;
-  return data;
+  return first(data);
 }
 
 export async function getEventById(id: string): Promise<EventRow | null> {
   const supabase = createServiceClient();
-  const { data, error } = await supabase.from("events").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase.from("events").select("*").eq("id", id).limit(1);
   if (error) throw error;
-  return data;
+  return first(data);
 }
 
 export async function listEvents(): Promise<EventRow[]> {

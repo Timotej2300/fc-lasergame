@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import { first } from "@/lib/supabase/safe";
 import type { PaymentRow, PaymentStatus } from "@/types/database";
 
 export async function getPaymentByGroup(groupId: string): Promise<PaymentRow | null> {
@@ -7,9 +8,9 @@ export async function getPaymentByGroup(groupId: string): Promise<PaymentRow | n
     .from("payments")
     .select("*")
     .eq("group_id", groupId)
-    .maybeSingle();
+    .limit(1);
   if (error) throw error;
-  return data;
+  return first(data);
 }
 
 export async function getPaymentByCheckoutSession(sessionId: string): Promise<PaymentRow | null> {
@@ -18,9 +19,9 @@ export async function getPaymentByCheckoutSession(sessionId: string): Promise<Pa
     .from("payments")
     .select("*")
     .eq("stripe_checkout_session_id", sessionId)
-    .maybeSingle();
+    .limit(1);
   if (error) throw error;
-  return data;
+  return first(data);
 }
 
 export async function attachCheckoutSession(paymentId: string, sessionId: string, paymentIntentId?: string) {
@@ -46,13 +47,14 @@ export async function setPaymentStatus(paymentId: string, status: PaymentStatus,
 
 export async function markPaymentPaidByIntent(paymentIntentId: string, sessionId: string) {
   const supabase = createServiceClient();
-  const { data: payment, error: findErr } = await supabase
+  const { data: payments, error: findErr } = await supabase
     .from("payments")
     .select("id, group_id")
     .eq("stripe_checkout_session_id", sessionId)
-    .maybeSingle();
+    .limit(1);
 
   if (findErr) throw findErr;
+  const payment = first(payments);
   if (!payment) return null;
 
   const { error } = await supabase

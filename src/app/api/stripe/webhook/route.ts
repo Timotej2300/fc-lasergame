@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe/server";
 import { markPaymentPaidByIntent, setPaymentStatus, getPaymentByCheckoutSession } from "@/lib/data/payments";
 import { createServiceClient } from "@/lib/supabase/server";
+import { first } from "@/lib/supabase/safe";
 
 export const runtime = "nodejs";
 
@@ -49,11 +50,12 @@ export async function POST(req: Request) {
           typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
         if (paymentIntentId) {
           const supabase = createServiceClient();
-          const { data: payment } = await supabase
+          const { data: paymentRows } = await supabase
             .from("payments")
             .select("id")
             .eq("stripe_payment_intent_id", paymentIntentId)
-            .maybeSingle();
+            .limit(1);
+          const payment = first(paymentRows);
           if (payment) {
             await setPaymentStatus(payment.id, "REFUNDED", { refunded_at: new Date().toISOString() });
           }

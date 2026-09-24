@@ -2,17 +2,20 @@ import { NextResponse } from "next/server";
 import { guardAdmin } from "@/lib/admin/guard";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe/server";
+import { first } from "@/lib/supabase/safe";
 
 export async function POST(_req: Request, { params }: { params: { groupId: string } }) {
   const denied = await guardAdmin();
   if (denied) return denied;
 
   const supabase = createServiceClient();
-  const { data: payment } = await supabase
+  const { data: paymentRows } = await supabase
     .from("payments")
     .select("*")
     .eq("group_id", params.groupId)
-    .maybeSingle();
+    .limit(1);
+
+  const payment = first(paymentRows);
 
   if (!payment) {
     return NextResponse.json({ error: "Platba nebola nájdená." }, { status: 404 });

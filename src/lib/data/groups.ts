@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import { first } from "@/lib/supabase/safe";
 import type { CreateGroupInput } from "@/lib/validation";
 import type { GroupRow, GroupStatus } from "@/types/database";
 
@@ -51,12 +52,14 @@ export async function createGroup(input: CreateGroupInput, depositCents: number)
 
   if (input.mode === "TEAMS" && input.teams) {
     for (const team of input.teams) {
-      const { data: teamRow, error: teamErr } = await supabase
+      const { data: teamRows, error: teamErr } = await supabase
         .from("teams")
         .insert({ group_id: groupId, name: team.name })
-        .select("id")
-        .single();
+        .select("id");
       if (teamErr) throw teamErr;
+
+      const teamRow = first(teamRows);
+      if (!teamRow) throw new Error("TEAM_INSERT_FAILED");
 
       const memberIds = (insertedPlayers ?? [])
         .filter((p) => team.playerNames.includes(p.name))
@@ -72,7 +75,7 @@ export async function createGroup(input: CreateGroupInput, depositCents: number)
   const method = input.source === "KIOSK" ? "CASH" : "ONLINE";
   const paymentStatus = input.source === "KIOSK" ? "WAITING_CASH" : "PENDING";
 
-  const { data: payment, error: paymentErr } = await supabase
+  const { data: paymentRows, error: paymentErr } = await supabase
     .from("payments")
     .insert({
       group_id: groupId,
@@ -80,10 +83,12 @@ export async function createGroup(input: CreateGroupInput, depositCents: number)
       status: paymentStatus,
       method
     })
-    .select("id")
-    .single();
+    .select("id");
 
   if (paymentErr) throw paymentErr;
+
+  const payment = first(paymentRows);
+  if (!payment) throw new Error("PAYMENT_INSERT_FAILED");
 
   return { groupId: groupId as string, groupNumber: groupNumber as number, paymentId: payment.id as string };
 }
@@ -151,7 +156,7 @@ export async function markGroupArrived(groupId: string, arrived: boolean) {
 
 export async function getGroupById(groupId: string): Promise<GroupRow | null> {
   const supabase = createServiceClient();
-  const { data, error } = await supabase.from("groups").select("*").eq("id", groupId).maybeSingle();
+  const { data, error } = await supabase.from("groups").select("*").eq("id", groupId).limit(1);
   if (error) throw error;
-  return data;
+  return first(data);
 }

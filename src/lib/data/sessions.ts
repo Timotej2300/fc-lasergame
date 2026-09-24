@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import { first } from "@/lib/supabase/safe";
 import type { GameSessionRow } from "@/types/database";
 
 export async function getCurrentSession(eventId: string): Promise<GameSessionRow | null> {
@@ -8,9 +9,9 @@ export async function getCurrentSession(eventId: string): Promise<GameSessionRow
     .select("*")
     .eq("event_id", eventId)
     .eq("is_current", true)
-    .maybeSingle();
+    .limit(1);
   if (error) throw error;
-  return data;
+  return first(data);
 }
 
 export async function callNextGroup(eventId: string, groupId: string, slotId: string | null) {
@@ -27,20 +28,23 @@ export async function callNextGroup(eventId: string, groupId: string, slotId: st
       state: "CALLED",
       is_current: true
     })
-    .select("*")
-    .single();
+    .select("*");
 
   if (error) throw error;
 
+  const session = first(data);
+  if (!session) throw new Error("SESSION_INSERT_FAILED");
+
   await supabase.from("groups").update({ status: "CALLED" }).eq("id", groupId);
 
-  return data;
+  return session;
 }
 
 export async function startCountdown(sessionId: string, countdownSeconds: number) {
   const supabase = createServiceClient();
   const now = new Date();
-  const { data: session } = await supabase.from("game_sessions").select("group_id").eq("id", sessionId).single();
+  const { data: sessionRows } = await supabase.from("game_sessions").select("group_id").eq("id", sessionId).limit(1);
+  const session = first(sessionRows);
 
   const { error } = await supabase
     .from("game_sessions")
@@ -66,7 +70,8 @@ export async function startPlaying(sessionId: string, durationMinutes: number) {
   const now = new Date();
   const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000);
 
-  const { data: session } = await supabase.from("game_sessions").select("group_id").eq("id", sessionId).single();
+  const { data: sessionRows } = await supabase.from("game_sessions").select("group_id").eq("id", sessionId).limit(1);
+  const session = first(sessionRows);
 
   const { error } = await supabase
     .from("game_sessions")
@@ -88,7 +93,12 @@ export async function finishSession(sessionId: string) {
   const supabase = createServiceClient();
   const now = new Date();
 
-  const { data: session } = await supabase.from("game_sessions").select("group_id, slot_id").eq("id", sessionId).single();
+  const { data: sessionRows } = await supabase
+    .from("game_sessions")
+    .select("group_id, slot_id")
+    .eq("id", sessionId)
+    .limit(1);
+  const session = first(sessionRows);
 
   const { error } = await supabase
     .from("game_sessions")

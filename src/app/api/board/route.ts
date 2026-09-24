@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getActiveEvent } from "@/lib/data/events";
 import { getRules } from "@/lib/data/settings";
+import { first } from "@/lib/supabase/safe";
 
 export const dynamic = "force-dynamic";
 
@@ -15,27 +16,32 @@ export async function GET() {
 
   const supabase = createServiceClient();
 
-  const { data: session } = await supabase
+  const { data: sessionRows } = await supabase
     .from("game_sessions")
     .select("*")
     .eq("event_id", event.id)
     .eq("is_current", true)
-    .maybeSingle();
+    .limit(1);
+
+  const session = first(sessionRows);
 
   async function loadGroupDetails(groupId: string | null) {
     if (!groupId) return null;
-    const [{ data: group }, { data: players }, { data: teams }, { data: members }] = await Promise.all([
-      supabase.from("groups").select("*").eq("id", groupId).maybeSingle(),
+    const [{ data: groupRows }, { data: players }, { data: teams }, { data: members }] = await Promise.all([
+      supabase.from("groups").select("*").eq("id", groupId).limit(1),
       supabase.from("players").select("id, name").eq("group_id", groupId),
       supabase.from("teams").select("id, name").eq("group_id", groupId),
       supabase.from("team_members").select("team_id, player_id")
     ]);
 
+    const group = first(groupRows);
     if (!group) return null;
 
-    const slotData = group.slot_id
-      ? (await supabase.from("game_slots").select("*").eq("id", group.slot_id).maybeSingle()).data
-      : null;
+    let slotData = null;
+    if (group.slot_id) {
+      const { data: slotRows } = await supabase.from("game_slots").select("*").eq("id", group.slot_id).limit(1);
+      slotData = first(slotRows);
+    }
 
     const teamsWithMembers = (teams ?? []).map((t) => ({
       id: t.id,

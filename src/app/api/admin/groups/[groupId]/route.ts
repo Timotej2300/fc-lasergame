@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { guardAdmin } from "@/lib/admin/guard";
 import { createServiceClient } from "@/lib/supabase/server";
+import { first } from "@/lib/supabase/safe";
 
 const actionSchema = z.object({
   action: z.enum(["mark_arrived", "mark_not_arrived", "mark_no_show", "cancel", "mark_to_refund", "mark_paid_cash"])
@@ -24,13 +25,15 @@ export async function PATCH(req: Request, { params }: { params: { groupId: strin
   }
 
   const supabase = createServiceClient();
-  const { data: group } = await supabase.from("groups").select("*").eq("id", params.groupId).maybeSingle();
+  const { data: groupRows } = await supabase.from("groups").select("*").eq("id", params.groupId).limit(1);
+  const group = first(groupRows);
 
   if (!group) {
     return NextResponse.json({ error: "Skupina nebola nájdená." }, { status: 404 });
   }
 
-  const { data: payment } = await supabase.from("payments").select("*").eq("group_id", group.id).maybeSingle();
+  const { data: paymentRows } = await supabase.from("payments").select("*").eq("group_id", group.id).limit(1);
+  const payment = first(paymentRows);
 
   switch (parsed.data.action) {
     case "mark_arrived":

@@ -3,6 +3,7 @@ import { guardAdmin } from "@/lib/admin/guard";
 import { eventSchema } from "@/lib/validation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { regenerateSlots } from "@/lib/data/events";
+import { first } from "@/lib/supabase/safe";
 
 export async function PATCH(req: Request, { params }: { params: { eventId: string } }) {
   const denied = await guardAdmin();
@@ -36,12 +37,13 @@ export async function PATCH(req: Request, { params }: { params: { eventId: strin
   if (d.countdownEnabled !== undefined) update.countdown_enabled = d.countdownEnabled;
   if (d.depositAmountCents !== undefined) update.deposit_amount_cents = d.depositAmountCents;
 
-  const { data: event, error } = await supabase
+  const { data: eventRows, error } = await supabase
     .from("events")
     .update(update)
     .eq("id", params.eventId)
-    .select("*")
-    .single();
+    .select("*");
+
+  const event = first(eventRows);
 
   if (error || !event) {
     return NextResponse.json({ error: "Event sa nepodarilo upraviť." }, { status: 500 });

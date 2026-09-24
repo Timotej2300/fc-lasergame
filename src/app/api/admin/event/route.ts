@@ -3,6 +3,7 @@ import { guardAdmin } from "@/lib/admin/guard";
 import { eventSchema } from "@/lib/validation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { listEvents, regenerateSlots } from "@/lib/data/events";
+import { first } from "@/lib/supabase/safe";
 
 export async function GET() {
   const denied = await guardAdmin();
@@ -31,12 +32,13 @@ export async function POST(req: Request) {
   const supabase = createServiceClient();
   const d = parsed.data;
 
-  const { data: existingActive } = await supabase.from("events").select("id").eq("is_active", true).maybeSingle();
+  const { data: existingActiveRows } = await supabase.from("events").select("id").eq("is_active", true).limit(1);
+  const existingActive = first(existingActiveRows);
   if (existingActive) {
     await supabase.from("events").update({ is_active: false }).eq("id", existingActive.id);
   }
 
-  const { data: event, error } = await supabase
+  const { data: eventRows, error } = await supabase
     .from("events")
     .insert({
       name: d.name,
@@ -52,8 +54,9 @@ export async function POST(req: Request) {
       deposit_amount_cents: d.depositAmountCents,
       is_active: true
     })
-    .select("*")
-    .single();
+    .select("*");
+
+  const event = first(eventRows);
 
   if (error || !event) {
     return NextResponse.json({ error: "Event sa nepodarilo vytvoriť." }, { status: 500 });

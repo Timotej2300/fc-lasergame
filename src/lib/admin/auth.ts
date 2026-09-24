@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { createServiceClient } from "@/lib/supabase/server";
+import { first } from "@/lib/supabase/safe";
 
 const SESSION_COOKIE = "fc_admin_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12;
@@ -22,19 +23,20 @@ export async function verifyAdminCode(code: string): Promise<boolean> {
 export async function createAdminSession(): Promise<string> {
   const supabase = createServiceClient();
 
-  let { data: admin } = await supabase
+  const { data: adminRows } = await supabase
     .from("admins")
     .select("id")
     .eq("label", "faceclub")
-    .maybeSingle();
+    .limit(1);
+
+  let admin = first(adminRows);
 
   if (!admin) {
     const inserted = await supabase
       .from("admins")
       .insert({ label: "faceclub", code_hash: hash(process.env.ADMIN_ACCESS_CODE || "") })
-      .select("id")
-      .single();
-    admin = inserted.data;
+      .select("id");
+    admin = first(inserted.data);
   }
 
   if (!admin) throw new Error("Could not create admin record");
@@ -78,10 +80,11 @@ export async function isAdminAuthenticated(): Promise<boolean> {
     .from("admin_sessions")
     .select("expires_at")
     .eq("token_hash", hash(token))
-    .maybeSingle();
+    .limit(1);
 
-  if (!data) return false;
-  return new Date(data.expires_at).getTime() > Date.now();
+  const session = first(data);
+  if (!session) return false;
+  return new Date(session.expires_at).getTime() > Date.now();
 }
 
 export async function requireAdmin() {
