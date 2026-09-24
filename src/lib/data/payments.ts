@@ -1,0 +1,72 @@
+import { createServiceClient } from "@/lib/supabase/server";
+import type { PaymentRow, PaymentStatus } from "@/types/database";
+
+export async function getPaymentByGroup(groupId: string): Promise<PaymentRow | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("group_id", groupId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function getPaymentByCheckoutSession(sessionId: string): Promise<PaymentRow | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("stripe_checkout_session_id", sessionId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function attachCheckoutSession(paymentId: string, sessionId: string, paymentIntentId?: string) {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("payments")
+    .update({
+      stripe_checkout_session_id: sessionId,
+      stripe_payment_intent_id: paymentIntentId ?? null
+    })
+    .eq("id", paymentId);
+  if (error) throw error;
+}
+
+export async function setPaymentStatus(paymentId: string, status: PaymentStatus, extra?: Record<string, unknown>) {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("payments")
+    .update({ status, ...extra })
+    .eq("id", paymentId);
+  if (error) throw error;
+}
+
+export async function markPaymentPaidByIntent(paymentIntentId: string, sessionId: string) {
+  const supabase = createServiceClient();
+  const { data: payment, error: findErr } = await supabase
+    .from("payments")
+    .select("id, group_id")
+    .eq("stripe_checkout_session_id", sessionId)
+    .maybeSingle();
+
+  if (findErr) throw findErr;
+  if (!payment) return null;
+
+  const { error } = await supabase
+    .from("payments")
+    .update({
+      status: "PAID_ONLINE",
+      stripe_payment_intent_id: paymentIntentId,
+      paid_at: new Date().toISOString()
+    })
+    .eq("id", payment.id);
+
+  if (error) throw error;
+
+  await supabase.from("groups").update({ status: "CONFIRMED" }).eq("id", payment.group_id);
+
+  return payment.group_id as string;
+}

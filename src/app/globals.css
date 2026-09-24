@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: #0a0a0f;
+  background-image: radial-gradient(circle at 20% 0%, rgba(255, 45, 85, 0.12), transparent 40%),
+    radial-gradient(circle at 80% 10%, rgba(0, 229, 255, 0.1), transparent 40%);
+  min-height: 100%;
+}
+
+* {
+  scrollbar-color: #2a2a38 #0a0a0f;
+}
+
+.glass {
+  background: rgba(18, 18, 26, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.text-glow {
+  text-shadow: 0 0 24px rgba(255, 45, 85, 0.5);
+}
+
+@keyframes flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.animate-flash {
+  animation: flash 1s ease-in-out infinite;
+}
