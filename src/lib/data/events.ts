@@ -7,10 +7,10 @@ export async function getActiveEvent(): Promise<EventRow | null> {
     .from("events")
     .select("*")
     .eq("is_active", true)
-    .maybeSingle();
+    .limit(1);
 
   if (error) throw error;
-  return data;
+  return data && data.length > 0 ? data[0] : null;
 }
 
 export async function getEventById(id: string): Promise<EventRow | null> {
