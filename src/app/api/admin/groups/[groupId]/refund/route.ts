@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { guardAdmin } from "@/lib/admin/guard";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getStripe } from "@/lib/stripe/server";
+import { refundPayPalCapture } from "@/lib/paypal/server";
 import { first } from "@/lib/supabase/safe";
 
 export async function POST(_req: Request, { params }: { params: { groupId: string } }) {
@@ -38,13 +38,12 @@ export async function POST(_req: Request, { params }: { params: { groupId: strin
     return NextResponse.json({ success: true, status: "REFUNDED_CASH" });
   }
 
-  if (!payment.stripe_payment_intent_id) {
-    return NextResponse.json({ error: "Platba nemá priradenú Stripe transakciu." }, { status: 400 });
+  if (!payment.paypal_capture_id) {
+    return NextResponse.json({ error: "Platba nemá priradenú PayPal transakciu." }, { status: 400 });
   }
 
   try {
-    const stripe = getStripe();
-    await stripe.refunds.create({ payment_intent: payment.stripe_payment_intent_id });
+    await refundPayPalCapture(payment.paypal_capture_id);
 
     const { error } = await supabase
       .from("payments")
@@ -55,6 +54,7 @@ export async function POST(_req: Request, { params }: { params: { groupId: strin
 
     return NextResponse.json({ success: true, status: "REFUNDED" });
   } catch (err) {
-    return NextResponse.json({ error: "Vrátenie zálohy cez Stripe zlyhalo." }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: "Vrátenie zálohy cez PayPal zlyhalo. " + message }, { status: 500 });
   }
 }

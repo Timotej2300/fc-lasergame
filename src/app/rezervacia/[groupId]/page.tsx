@@ -23,6 +23,21 @@ export default function ReservationStatusPage() {
     let attempts = 0;
     let cancelled = false;
 
+    async function maybeCapture() {
+      const orderId = search.get("token");
+      if (orderId) {
+        try {
+          await fetch("/api/paypal/capture", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId })
+          });
+        } catch {
+          // ignore, polling below will still show current status
+        }
+      }
+    }
+
     async function poll() {
       attempts += 1;
       const res = await fetch(`/api/groups/${params.groupId}`, { cache: "no-store" });
@@ -36,11 +51,11 @@ export default function ReservationStatusPage() {
       }
     }
 
-    poll();
+    maybeCapture().then(poll);
     return () => {
       cancelled = true;
     };
-  }, [params.groupId, status]);
+  }, [params.groupId, status, search]);
 
   if (loading && !details) {
     return (

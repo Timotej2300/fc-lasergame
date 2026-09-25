@@ -109,7 +109,7 @@ export function BookingFlow({ event, initialSlots }: { event: EventRow; initialS
         return;
       }
 
-      const checkoutRes = await fetch("/api/stripe/checkout", {
+      const checkoutRes = await fetch("/api/paypal/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ groupId: data.groupId })

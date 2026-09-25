@@ -88,9 +88,11 @@ returns int as $$
 declare
   v_max int;
 begin
+  perform 1 from groups where event_id = p_event_id for update;
+
   select coalesce(max(group_number), 0) + 1 into v_max
-  from groups where event_id = p_event_id
-  for update;
+  from groups where event_id = p_event_id;
+
   return v_max;
 end;
 $$ language plpgsql security definer;

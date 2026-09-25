@@ -100,6 +100,8 @@ export interface PaymentRow {
   method: "ONLINE" | "CASH";
   stripe_payment_intent_id: string | null;
   stripe_checkout_session_id: string | null;
+  paypal_order_id: string | null;
+  paypal_capture_id: string | null;
   refunded_at: string | null;
   paid_at: string | null;
   created_at: string;

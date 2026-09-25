@@ -13,25 +13,22 @@ export async function getPaymentByGroup(groupId: string): Promise<PaymentRow | n
   return first(data);
 }
 
-export async function getPaymentByCheckoutSession(sessionId: string): Promise<PaymentRow | null> {
+export async function getPaymentByOrderId(orderId: string): Promise<PaymentRow | null> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("payments")
     .select("*")
-    .eq("stripe_checkout_session_id", sessionId)
+    .eq("paypal_order_id", orderId)
     .limit(1);
   if (error) throw error;
   return first(data);
 }
 
-export async function attachCheckoutSession(paymentId: string, sessionId: string, paymentIntentId?: string) {
+export async function attachPayPalOrder(paymentId: string, orderId: string) {
   const supabase = createServiceClient();
   const { error } = await supabase
     .from("payments")
-    .update({
-      stripe_checkout_session_id: sessionId,
-      stripe_payment_intent_id: paymentIntentId ?? null
-    })
+    .update({ paypal_order_id: orderId })
     .eq("id", paymentId);
   if (error) throw error;
 }
@@ -45,23 +42,27 @@ export async function setPaymentStatus(paymentId: string, status: PaymentStatus,
   if (error) throw error;
 }
 
-export async function markPaymentPaidByIntent(paymentIntentId: string, sessionId: string) {
+export async function markPaymentCapturedByOrder(orderId: string, captureId: string | null) {
   const supabase = createServiceClient();
-  const { data: payments, error: findErr } = await supabase
+  const { data: rows, error: findErr } = await supabase
     .from("payments")
-    .select("id, group_id")
-    .eq("stripe_checkout_session_id", sessionId)
+    .select("id, group_id, status")
+    .eq("paypal_order_id", orderId)
     .limit(1);
 
   if (findErr) throw findErr;
-  const payment = first(payments);
+  const payment = first(rows);
   if (!payment) return null;
+
+  if (payment.status === "PAID_ONLINE") {
+    return payment.group_id as string;
+  }
 
   const { error } = await supabase
     .from("payments")
     .update({
       status: "PAID_ONLINE",
-      stripe_payment_intent_id: paymentIntentId,
+      paypal_capture_id: captureId,
       paid_at: new Date().toISOString()
     })
     .eq("id", payment.id);
