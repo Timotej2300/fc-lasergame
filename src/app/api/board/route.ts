@@ -5,13 +5,22 @@ import { getRules } from "@/lib/data/settings";
 import { first } from "@/lib/supabase/safe";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+function withNoStoreHeaders(res: NextResponse) {
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
+}
 
 export async function GET() {
   const event = await getActiveEvent();
   const rules = await getRules();
 
   if (!event) {
-    return NextResponse.json({ event: null, rules, current: null, next: null });
+    return withNoStoreHeaders(NextResponse.json({ event: null, rules, current: null, next: null }));
   }
 
   const supabase = createServiceClient();
@@ -75,5 +84,5 @@ export async function GET() {
     next = await loadGroupDetails(sorted[0].id);
   }
 
-  return NextResponse.json({ event, rules, current, next, serverTime: new Date().toISOString() });
+  return withNoStoreHeaders(NextResponse.json({ event, rules, current, next, serverTime: new Date().toISOString() }));
 }
